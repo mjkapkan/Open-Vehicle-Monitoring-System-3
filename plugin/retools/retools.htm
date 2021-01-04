@@ -2,6 +2,8 @@
   Web UI page plugin:
     Frontend for the OVMS3 "re" (reverse engineering) toolkit
     Version 0.1  Michael Balzer <dexter@dexters-web.de>
+    Version 0.2  Jaunius Kapkan <jaunius@gmx.de>
+
   
   Recommended installation:
     - Type:    Page
@@ -61,10 +63,13 @@ td u {
               <div id="controls" class="action-menu">
                 <button type="button" class="btn btn-default action-start" data-target="#status" data-cmd="re start">Start</button>
                 <button type="button" class="btn btn-default action-stop" data-target="#status" data-cmd="re stop">Stop</button>
-                <div>Set mode:</div>
+                <div>Set Mode:</div>
                 <button type="button" class="btn btn-default action-clear" data-target="#status" data-cmd="re mode discover">Discover</button>
                 <button type="button" class="btn btn-default action-clear" data-target="#status" data-cmd="re mode analyse">Analyse</button>
                 <button type="button" class="btn btn-default action-clear" data-target="#status" data-cmd="re mode serve">Serve</button>
+                <div>Data Output:</div>
+                <button type="button" class="btn btn-default action-clear" onclick="setBinOutput(false)">Hex</button>
+                <button type="button" class="btn btn-default action-clear" onclick="setBinOutput(true)">Binary</button>
                 <div>Clear:</div>
                 <button type="button" class="btn btn-default action-clear" data-target="#status" data-cmd="re clear">all</button>
                 <button type="button" class="btn btn-default action-clear" data-target="#status" data-cmd="re discover clear discovered">discovered</button>
@@ -147,6 +152,44 @@ td u {
     $('#info').loadcmd("re dbc list " + data[0]);
   });
 
+  function hex2bin(hex){
+    return ("00000000" + (parseInt(hex, 16)).toString(2)).substr(-8);
+  }
+
+  function msgToBinary(msgHexString,updateData) {
+    var splitStr = " "
+    if (updateData) {
+      splitStr = "</u> <u>"
+    }
+    msgBytes = msgHexString.split(splitStr)
+    binmsgBytes = []
+    for (let hexByte of msgBytes) {
+      binmsgBytes.push(hex2bin(hexByte))
+    }
+    binmsgBytes = binmsgBytes.join(splitStr)
+    if (updateData) {
+      return "<u>" + binmsgBytes + "</u>" 
+    }
+    return binmsgBytes
+  }
+
+  function parseCanBytes(CanMsgList,updateData){
+    CanMsgList.forEach(function (value, i) {
+      CanMsgList[i][3] = msgToBinary(CanMsgList[i][3],updateData)
+    })
+  }
+
+  window.setBinOutput = function (enabled) {
+    if (enabled) {
+      window.binOutput = true
+    }
+    else {
+      window.binOutput = false
+    }
+  }
+
+  window.binOutput = false
+
   // Receiver event handling:
   $('#retools').on('msg:notify', function(ev, msg) {
     if (msg.type == "stream") {
@@ -155,6 +198,10 @@ td u {
         if (!$list) return;
         try {
           var redata = JSON.parse(msg.value);
+          if (window.binOutput) {
+            parseCanBytes(redata,false)
+          }
+          window.newdata = redata
           $list.clear().rows.add(redata).draw();
         } catch(e) {
           console.error("retools/list/set error", e, msg);
@@ -165,6 +212,10 @@ td u {
         if (!$list) return;
         try {
           var redata = JSON.parse(msg.value), rid, row;
+          window.updatedata = redata
+          if (window.binOutput) {
+            parseCanBytes(redata,true)
+          }
           redata.forEach(function(upd) {
             rid = upd[0].replace(/([:/])/g, "\\$1");
             row = $list.row('#' + rid);
